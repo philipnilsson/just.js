@@ -129,14 +129,17 @@ var makeTag = function(tagName) {
     }
     
     var arg0 = arguments[0];
+    for (var i in arg0)
+        arg0[i] = interpolate(arg0[i])
     return new tmpl(function(c) { 
+        var as = {}
         for (var i in arg0)
-            arg0[i] = interpolate(arg0[i]).run(c)
+            as[i] = arg0[i].run(c)
         var runContent = content.run(c)
         return function(x) {
             var attrs = ""
-            for (var i in arg0) {
-                attrs += i + '="'+ arg0[i](x).template + '"'
+            for (var i in as) {
+                attrs += i + '="'+ as[i](x).template + '"'
             }
             var c = runContent(x)
             return { 
@@ -150,31 +153,43 @@ var makeTag = function(tagName) {
 
 function interpolate(str) {
     var parts = []
-    return new tmpl(function(c) { 
-          while (str) {
-          var i = str.indexOf('{{')
-          if (i < 0) {
-              parts.push(str)
-              break
-          }
-          parts.push(str.slice(0, i))
-          str = str.slice(i + 2)
-          var j = str.indexOf('}}')
-          if (j < 0)
-              throw new Error('Parse error in template: Missing "}}"')
-          var expression = str.slice(0, j)
-          
-          parts.push(new Function(c.map(function(x){return x.name}), 'return ' + str.slice(0, j)))
-          str = str.slice(j + 2)
+    while (str) {
+        var i = str.indexOf('{{')
+        if (i < 0) {
+            parts.push(str)
+            break
         }
+        parts.push(str.slice(0, i))
+        str = str.slice(i + 2)
+        var j = str.indexOf('}}')
+        if (j < 0)
+            throw new Error('Parse error in template: Missing "}}"')
+        var expression = str.slice(0, j)
+        
+        parts.push((function(body) { return function (cs) { 
+            return new Function(cs, 'return ' + body)
+        }})(str.slice(0,j)))
+        
+        str = str.slice(j + 2)
+    }
+    return new tmpl(function(c) { 
+          
+        var cs = c.map(function(x) { return x.name })
+        var ps = []
+        for (var i in parts){
+            ps[i] = parts[i]
+            if (ps[i] instanceof Function)
+                ps[i] = (ps[i])(cs)
+        }
+        
         return function(x) {
             var s = ''
             var retVal = null
-            for (var i in parts) {
-                if (typeof parts[i] === 'string')
-                    s += parts[i]
+            for (var i in ps) {
+                if (typeof ps[i] === 'string')
+                    s += ps[i]
                 else {
-                    retVal = parts[i].bind(x).apply(null, c.map(function(x){return x.value}))
+                    retVal = ps[i].bind(x).apply(null, c.map(function(x){return x.value}))
                     s += retVal
                 }
             }
