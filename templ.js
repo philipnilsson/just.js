@@ -1,3 +1,12 @@
+function tag(tagName, attributes, content) {
+    var attrs = ""
+    for (var i in attributes)
+        attrs += i + '="' + attributes[i] + '"'
+    return '<' + tagName + ' ' + attrs + '>' + content + '</' + tagName + '>';
+}
+function text(str) {
+    return str;
+}
 function append(tmplA, tmplB) { 
     if (tmplA == null)
         return tmplB
@@ -17,8 +26,10 @@ function tell(s) {
 function ask(by) {
     return new tmpl(function(c) { 
         var f = function (r) { return r }
-        if (by !== null) 
-            f = function(r) { return interpolate(by).run(c)(r).value }
+        if (by !== null) {
+            var run = interpolate(by).run(c)
+            f = function(r) { return run(r).value }
+        }
         return function(r) {
             return { value: f(r), template: mnull() }
         }
@@ -98,6 +109,19 @@ function tmpl(run){
             }})
     }
     this.and = function(other) {
+        var self = this
+        return new tmpl(function(c) {
+            var runA = self.run(c)
+            var runB = other.run(c)
+            return function(r) {
+                var resA = runA(r)
+                var resB = runB(r)
+                return {
+                    value: resB.value, 
+                    template: append(resA.template, resB.template)
+                }
+            }
+        })
         return this.flatMap(function(_) { return other } )
     }
     this.tell = function() {
@@ -106,10 +130,10 @@ function tmpl(run){
     this.withContext = function(name, value) { 
         var self = this;
         return new tmpl(function(c) { 
-            console.log(c.concat([{name: name, value: value}]))
             return self.run(c.concat([{name: name, value: value}]))
         })
     }
+    this.compile = function(c) { return this.run(c) }
 }
 
 repeat = function(template) {
@@ -137,14 +161,14 @@ var makeTag = function(tagName) {
             as[i] = arg0[i].run(c)
         var runContent = content.run(c)
         return function(x) {
-            var attrs = ""
+            var attrs = {}
             for (var i in as) {
-                attrs += i + '="'+ as[i](x).template + '"'
+                attrs[i] = as[i](x).template
             }
             var c = runContent(x)
             return { 
-                value: content.value, 
-                template: '<' + tagName + ' ' + attrs + '>' + c.template + '</' + tagName + '>'
+                value: c.value, 
+                template: tag(tagName, attrs, c.template)
             }
         }
     })
@@ -159,12 +183,11 @@ function interpolate(str) {
             parts.push(str)
             break
         }
-        parts.push(str.slice(0, i))
+        parts.push(text(str.slice(0, i)))
         str = str.slice(i + 2)
         var j = str.indexOf('}}')
         if (j < 0)
             throw new Error('Parse error in template: Missing "}}"')
-        var expression = str.slice(0, j)
         
         parts.push((function(body) { return function (cs) { 
             return new Function(cs, 'return ' + body)
@@ -175,6 +198,7 @@ function interpolate(str) {
     return new tmpl(function(c) { 
           
         var cs = c.map(function(x) { return x.name })
+        var vs = c.map(function(x) { return x.value })
         var ps = []
         for (var i in parts){
             ps[i] = parts[i]
@@ -183,15 +207,15 @@ function interpolate(str) {
         }
         
         return function(x) {
-            var s = ''
+            var s = mnull()
             var retVal = null
             for (var i in ps) {
-                if (typeof ps[i] === 'string')
-                    s += ps[i]
-                else {
-                    retVal = ps[i].bind(x).apply(null, c.map(function(x){return x.value}))
-                    s += retVal
+                var p = ps[i]
+                if (p instanceof Function) {
+                    p = p.bind(x).apply(null, vs)
+                    retVal = p
                 }
+                s = append(s, p)
             }
             return { value: retVal, template: s }
         }
@@ -214,17 +238,27 @@ var test =
     div({id: 'bar'},
       'Bar: {{this.bar}}'))
 
-
 tableTemplate = 
   function(name, template) {
-    return table({'class': '{{name}}-table'}, 
-            tr  ({'class': '{{name}}-row'},
-             repeat(
-              td({'class': '{{name}}-cell'},
-               template))))
-           .withContext('name', name)
-}
+    return (
+      div({'class': '{{name}}-table table-def'},
+        repeat(
+          div ({'class': '{{name}}-row table-row'},
+            span({'class': '{{name}}-cell table-cell'},
+              template))))
+      .withContext('name', name)
+    )
+  }
+
 
 var person = div('My name is {{this.name}}')
-personTable = tableTemplate('person', person)
+personTable = tableTemplate('person', person).run([])
 
+app = function(id, x) {
+    document.getElementById(id).innerHTML = x.template;
+}
+
+cycle = function(x, i) {
+    if (i == 0) return []
+    return x.concat(cycle(x, i- 1))
+}
