@@ -1,22 +1,29 @@
 function tag(tagName, attributes, content) {
-    var attrs = ""
+    var el = document.createElement(tagName)
     for (var i in attributes)
-        attrs += i + '="' + attributes[i] + '"'
-    return '<' + tagName + ' ' + attrs + '>' + content + '</' + tagName + '>';
+        el[i] = attributes[i]
+    el.appendChild(content)
+    return el
 }
 function text(str) {
-    return str;
+    return document.createTextNode(str);
 }
 function append(tmplA, tmplB) { 
     if (tmplA == null)
         return tmplB
-    return tmplA + tmplB
+    var frag = document.createDocumentFragment()
+    frag.appendChild(tmplA)
+    frag.appendChild(tmplB)
+    return frag
 }
 function mnull(){ 
-    return ''
+    return document.createDocumentFragment()
 }
 function mconcat(tmpls) {
-    return tmpls.reduce(append, mnull())
+    var frag = document.createDocumentFragment()
+    for (var i in tmpls)
+        frag.appendChild(tmpls[i])
+    return frag
 }
 function tell(s) {
     return new tmpl(function(_) { return function(r) {
@@ -116,6 +123,7 @@ function tmpl(run){
             return function(r) {
                 var resA = runA(r)
                 var resB = runB(r)
+                var tmpA = document.createElement('divA')
                 return {
                     value: resB.value, 
                     template: append(resA.template, resB.template)
@@ -147,14 +155,16 @@ var makeTag = function(tagName) {
     }
     var content = value(null)
     for (var i = 1; i < arguments.length; i++) {
+        console.log(arguments[i], typeof arguments[i] === 'string')
         if (typeof arguments[i] === 'string')
             arguments[i] = interpolate(arguments[i])
         content = content.and(arguments[i])
     }
     
     var arg0 = arguments[0];
-    for (var i in arg0)
-        arg0[i] = interpolate(arg0[i])
+    for (var i in arg0) {
+        arg0[i] = interpolateStr(arg0[i])
+    }
     return new tmpl(function(c) { 
         var as = {}
         for (var i in arg0)
@@ -175,7 +185,14 @@ var makeTag = function(tagName) {
   }
 }
 
-function interpolate(str) {
+function interpolate(str) { 
+    return interpolateGen(str, mnull(), append, text) 
+}
+function interpolateStr(str) { 
+    return interpolateGen(str, '', function(x,y) { return x + y}, function(x){return x}) 
+}
+
+function interpolateGen(str, none, mappend, wrap) {
     var parts = []
     while (str) {
         var i = str.indexOf('{{')
@@ -183,7 +200,7 @@ function interpolate(str) {
             parts.push(str)
             break
         }
-        parts.push(text(str.slice(0, i)))
+        parts.push(str.slice(0, i))
         str = str.slice(i + 2)
         var j = str.indexOf('}}')
         if (j < 0)
@@ -207,7 +224,7 @@ function interpolate(str) {
         }
         
         return function(x) {
-            var s = mnull()
+            var s = none
             var retVal = null
             for (var i in ps) {
                 var p = ps[i]
@@ -215,7 +232,8 @@ function interpolate(str) {
                     p = p.bind(x).apply(null, vs)
                     retVal = p
                 }
-                s = append(s, p)
+                
+                s = mappend(s, wrap(p))
             }
             return { value: retVal, template: s }
         }
@@ -249,7 +267,6 @@ tableTemplate =
       .withContext('name', name)
     )
   }
-
 
 var person = div('My name is {{this.name}}')
 personTable = tableTemplate('person', person).run([])
