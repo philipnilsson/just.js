@@ -1,6 +1,8 @@
 
 var scripts = document.getElementsByTagName('script')
-var regex = new RegExp(/\<([^ ]+) ((?:[^ ]+[ ]*=[ ]*"[^ ]+" *)*)\>/g)
+
+var tagRegex = /<([^ ]+) ((?:[^ ]+ *= *"[^ ]+" *)*)>/g
+var attrRegex = /([^ ]+) *= *("[^ ]+")/g
 
 for (var i in scripts) {
 
@@ -11,9 +13,9 @@ for (var i in scripts) {
   if (!string)
     continue;
   
-  var m = string.replace(regex, function(str, tag, attrs) {
+  var m = string.replace(tagRegex, function(str, tag, attrs) {
     return tag + '({'
-      + attrs.replace(/([^ ]+)[ ]*=[ ]*("[^ ]+")/g, function(str, attr, value) {
+      + attrs.replace(attrRegex, function(str, attr, value) {
         return attr + ':' + value + ',';
       }) 
       + '})'

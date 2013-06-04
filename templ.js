@@ -25,6 +25,12 @@ function mconcat(tmpls) {
         frag.appendChild(tmpls[i])
     return frag
 }
+function mconcatT(tmpls) {
+  var t = value(null)
+  for (var i in tmpls)
+      t = t.and(tmpls[i])
+  return t;
+}
 function tell(s) {
     return new tmpl(function(_) { return function(r) {
       return { value: null, template: s } 
@@ -150,8 +156,10 @@ function tmpl(run){
     this.compile = function(c) { return this.run(c) }
 }
 
-repeat = function(template) {
-    return template.repeat()
+
+
+repeat = function() {
+    return mconcatT(arguments).repeat()
 }
 
 var makeTag = function(tagName) {
@@ -161,16 +169,15 @@ var makeTag = function(tagName) {
         attrs[i] = interpolateStr(attrs[i])
     
     return function() {
-      var content = value(null)
       var len = arguments.length;
       for (var i = 0; i < len; i++) {
           if (typeof arguments[i] === 'string')
               arguments[i] = interpolate(arguments[i])
-          if (typeof arguments[i] === 'function') {
+          else if (typeof arguments[i] === 'function') {
               arguments[i] = fromFunc(arguments[i])
           }
-          content = content.and(arguments[i])
       }
+      var content = mconcatT(arguments)
       
       return new tmpl(function(c) { 
           var as = {}
