@@ -1,7 +1,8 @@
 function tag(tagName, attributes, content) {
     var el = document.createElement(tagName)
-    for (var i in attributes)
-        el[i] = attributes[i]
+    for (var i in attributes) {
+         el.setAttribute(i, attributes[i])
+    }
     el.appendChild(content)
     return el
 }
@@ -161,9 +162,19 @@ function tmpl(run){
     this.compile = function(c) { return this.run(c) }
 }
 
-
+templateDwim = function(arg) {
+  if (typeof arg === 'string')
+      return interpolate(arg)
+  else if (arg instanceof Function) 
+      return fromFunc(arg)
+  else if (arg instanceof tmpl)
+      return arg
+  throw new Error('Unable to create template from argument.', arg)
+}
 
 repeat = function() {
+    for (var i in arguments)
+        arguments[i] = templateDwim(arguments[i])
     return mconcatT(arguments).repeat()
 }
 
@@ -176,11 +187,8 @@ var makeTag = function(tagName) {
     return function() {
       var len = arguments.length;
       for (var i = 0; i < len; i++) {
-          if (typeof arguments[i] === 'string')
-              arguments[i] = interpolate(arguments[i])
-          else if (typeof arguments[i] === 'function') {
-              arguments[i] = fromFunc(arguments[i])
-          }
+          arguments[i] = templateDwim(arguments[i])
+          
       }
       var content = mconcatT(arguments)
       
