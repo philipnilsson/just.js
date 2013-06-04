@@ -16,7 +16,7 @@ function append(tmplA, tmplB) {
     frag.appendChild(tmplB)
     return frag
 }
-function mnull(){ 
+function mnull() { 
     return document.createDocumentFragment()
 }
 function mconcat(tmpls) {
@@ -62,18 +62,21 @@ function fromFunc(f) {
 function tmpl(run){  
     this.run = run
     this.compile = run
-    this.flatMap = function(f) {
-        var self = this
-        return new tmpl(function(c) { 
-            var runA = self.run(c)
+    this.appl = function(template) {
+        var self = this;
+        return new tmpl(function(c) {
+            var run = self.run(c)
+            var runT = template.run(c)
             return function(r) {
-                var resA = runA(r)
-                var resB = f(resA.value).run(c)(r)
-                return { 
-                    value: resB.value, 
-                    template: append(resA.template, resB.template)
+                var f = run(r)
+                var x = runT(r)
+                return { template: x.template, value: f.value(x) }
             }
-        }})
+        })
+    }
+
+    this.log = function() { 
+        return this.map(function(x) { console.log(x); return x })
     }
     this.repeat = function() {
         var self = this
@@ -91,6 +94,12 @@ function tmpl(run){
                     template: mconcat(tmpl)
                 }
             }})
+    }
+    this.binding = function(field, selector) {
+        return interpolate(selector).map(function(x) { 
+            return function(y) {
+                return x.bindMe(field, y)
+            }}).appl(this)
     }
     this.then = function(template, f) {
         var self = this
@@ -142,10 +151,6 @@ function tmpl(run){
                 }
             }
         })
-        return this.flatMap(function(_) { return other } )
-    }
-    this.tell = function() {
-        return this.flatMap(tell)
     }
     this.withContext = function(name, value) { 
         var self = this;
