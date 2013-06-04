@@ -155,44 +155,43 @@ repeat = function(template) {
 }
 
 var makeTag = function(tagName) {
-  return function() {
-    if (arguments.length > 0 && (typeof arguments[0] == 'string' || arguments[0] instanceof tmpl)) {
-        [].unshift.call(arguments, {})
-    }
-    var content = value(null)
-    for (var i = 1; i < arguments.length; i++) {
-
-        if (typeof arguments[i] === 'string')
-            arguments[i] = interpolate(arguments[i])
-        if (typeof arguments[i] === 'function') {
-            arguments[i] = fromFunc(arguments[i])
-        }
-        content = content.and(arguments[i])
-    }
+  return function(attrs) {
     
-    var arg0 = arguments[0];
-    for (var i in arg0) {
-        arg0[i] = interpolateStr(arg0[i])
-    }
-    return new tmpl(function(c) { 
-        var as = {}
-        for (var i in arg0)
-            as[i] = arg0[i].run(c)
-        var runContent = content.run(c)
-        return function(x) {
-            var attrs = {}
-            for (var i in as) {
-                attrs[i] = as[i](x).template
-            }
-            var c = runContent(x)
-            return { 
-                value: c.value, 
-                template: tag(tagName, attrs, c.template)
-            }
-        }
-    })
-  }
-}
+    for (var i in attrs) 
+        attrs[i] = interpolateStr(attrs[i])
+    
+    return function() {
+      var content = value(null)
+      var len = arguments.length;
+      for (var i = 0; i < len; i++) {
+          if (typeof arguments[i] === 'string')
+              arguments[i] = interpolate(arguments[i])
+          if (typeof arguments[i] === 'function') {
+              arguments[i] = fromFunc(arguments[i])
+          }
+          content = content.and(arguments[i])
+      }
+      
+      return new tmpl(function(c) { 
+          var as = {}
+          for (var i in attrs) {
+              as[i] = attrs[i].run(c)
+          }
+          var runContent = content.run(c)
+          return function(x) {
+              var attributes = {}
+              for (var i in as) {
+                  attributes[i] = as[i](x).template
+              }
+              var c = runContent(x)
+              return { 
+                  value: c.value, 
+                  template: tag(tagName, attributes, c.template)
+              }
+          }
+      })
+    } 
+}}
 
 function interpolate(str) { 
     return interpolateGen(str, mnull(), append, text) 
@@ -254,36 +253,36 @@ table = makeTag('table')
 tr    = makeTag('tr')
 td    = makeTag('td')
 
-var test =
-  div({id: 'container'},
-    div({id: 'foo'},
-      'MyFoo: ',
-      ask('{{this.foo}}')
-        .then('My foo is {{this.foo}}')
-        .otherwise('I have no foo, my keys are [{{Object.keys(this)}}].')),
-    div({id: 'bar'},
-      'Bar: {{this.bar}}'))
+// var test =
+//   div({id: 'container'},
+//     div({id: 'foo'},
+//       'MyFoo: ',
+//       ask('{{this.foo}}')
+//         .then('My foo is {{this.foo}}')
+//         .otherwise('I have no foo, my keys are [{{Object.keys(this)}}].')),
+//     div({id: 'bar'},
+//       'Bar: {{this.bar}}'))
 
-tableTemplate = 
-  function(name, template) {
-    return (
-      div({'class': '{{name}}-table table-def'},
-        repeat(
-          div ({'class': '{{name}}-row table-row'},
-            span({'class': '{{name}}-cell table-cell'},
-              template))))
-      .withContext('name', name)
-    )
-  }
+// tableTemplate = 
+//   function(name, template) {
+//     return (
+//       div({'class': '{{name}}-table table-def'},
+//         repeat(
+//           div ({'class': '{{name}}-row table-row'},
+//             span({'class': '{{name}}-cell table-cell'},
+//               template))))
+//       .withContext('name', name)
+//     )
+//   }
 
-var person = div('My name is {{this.name}}')
-personTable = tableTemplate('person', person).run([])
+// var person = div('My name is {{this.name}}')
+// personTable = tableTemplate('person', person).run([])
 
-app = function(id, x) {
-    document.getElementById(id).innerHTML = x.template;
-}
+// app = function(id, x) {
+//     document.getElementById(id).innerHTML = x.template;
+// }
 
-cycle = function(x, i) {
-    if (i == 0) return []
-    return x.concat(cycle(x, i- 1))
-}
+// cycle = function(x, i) {
+//     if (i == 0) return []
+//     return x.concat(cycle(x, i- 1))
+// }
