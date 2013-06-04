@@ -47,7 +47,13 @@ function value(x) {
         return { value: x, template: mnull() }
     }})
 }
-function tmpl(run){ 
+function fromFunc(f) {
+  return new tmpl(function(_) { return function(r) { 
+      var result = f.bind(r).apply(null)
+      return { template: text(result), value: result } 
+  }})
+}
+function tmpl(run){  
     this.run = run
     this.compile = run
     this.flatMap = function(f) {
@@ -155,9 +161,12 @@ var makeTag = function(tagName) {
     }
     var content = value(null)
     for (var i = 1; i < arguments.length; i++) {
-        console.log(arguments[i], typeof arguments[i] === 'string')
+
         if (typeof arguments[i] === 'string')
             arguments[i] = interpolate(arguments[i])
+        if (typeof arguments[i] === 'function') {
+            arguments[i] = fromFunc(arguments[i])
+        }
         content = content.and(arguments[i])
     }
     
@@ -191,7 +200,6 @@ function interpolate(str) {
 function interpolateStr(str) { 
     return interpolateGen(str, '', function(x,y) { return x + y}, function(x){return x}) 
 }
-
 function interpolateGen(str, none, mappend, wrap) {
     var parts = []
     while (str) {
