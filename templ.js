@@ -6,6 +6,14 @@ function tag(tagName, attributes, content) {
     el.appendChild(content)
     return el
 }
+function raw(str) {
+  var frag = document.createDocumentFragment()
+  var div = document.createElement('div')
+  div.innerHTML = str;
+  while (div.childNodes.length)
+      frag.appendChild(div.childNodes[0])
+  return tell(frag);
+}
 function text(str) {
     return document.createTextNode(str);
 }
@@ -34,7 +42,7 @@ function mconcatT(tmpls) {
 }
 function tell(s) {
     return new tmpl(function(_) { return function(r) {
-      return { value: null, template: s } 
+      return { value: null, template: s.cloneNode(true) } 
     }})
 }
 function ask(by) {
@@ -56,8 +64,7 @@ function value(x) {
 }
 function fromFunc(f) {
   return new tmpl(function(_) { return function(r) { 
-      var result = f.bind(r).apply(null)
-      return { template: text(result), value: result } 
+      return { template: text(result), value: f.apply(r) } 
   }})
 }
 function tmpl(run){  
@@ -169,6 +176,7 @@ templateDwim = function(arg) {
       return fromFunc(arg)
   else if (arg instanceof tmpl)
       return arg
+  console.log(arg, {foo: 132})
   throw new Error('Unable to create template from argument.', arg)
 }
 
@@ -186,13 +194,11 @@ var makeTag = function(tagName) {
     
     return function() {
       var len = arguments.length;
-      for (var i = 0; i < len; i++) {
+      for (var i = 0; i < len; i++)
           arguments[i] = templateDwim(arguments[i])
-          
-      }
       var content = mconcatT(arguments)
       
-      return new tmpl(function(c) { 
+      return new tmpl(function(c) {
           var as = {}
           for (var i in attrs) {
               as[i] = attrs[i].run(c)
@@ -210,15 +216,22 @@ var makeTag = function(tagName) {
               }
           }
       })
-    } 
+    }
 }}
 
 function interpolate(str) { 
-    return interpolateGen(str, mnull(), append, text) 
+    return interpolateGen(str, mnull(), append, text)
 }
 function interpolateStr(str) { 
-    return interpolateGen(str, '', function(x,y) { return x + y}, function(x){return x}) 
+    return interpolateGen(str, '', function(x,y) { return x + y}, function(x){return x})
 }
+function map(arr, f) {
+  if (Array.prototype.map) { return arr.map(f) }
+  var len = arr.length, res = [];
+  for (var i = 0; i < len; i++) len.push(f(arr[i]))
+  return res;
+}
+
 function interpolateGen(str, none, mappend, wrap) {
     var parts = []
     while (str) {
@@ -241,8 +254,8 @@ function interpolateGen(str, none, mappend, wrap) {
     }
     return new tmpl(function(c) { 
           
-        var cs = c.map(function(x) { return x.name })
-        var vs = c.map(function(x) { return x.value })
+        var cs = map(c, function(x) { return x.name })
+        var vs = map(c, function(x) { return x.value })
         var ps = []
         for (var i in parts){
             ps[i] = parts[i]
@@ -256,7 +269,7 @@ function interpolateGen(str, none, mappend, wrap) {
             for (var i in ps) {
                 var p = ps[i]
                 if (p instanceof Function) {
-                    p = p.bind(x).apply(null, vs)
+                    p = p.apply(x, vs)
                     retVal = p
                 }
                 

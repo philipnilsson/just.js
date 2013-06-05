@@ -14,7 +14,7 @@ for (var i in scripts) {
     continue;
   
   var m = string.replace(tagRegex, function(str, tag, attrs) {
-    if (str[0] === "'" || str[0] === '"')
+    if (str.charAt(0) === "'" || str.charAt(0) === '"')
         return str
     return tag + '({'
       + attrs.replace(attrRegex, function(str, attr, value) {
@@ -22,5 +22,6 @@ for (var i in scripts) {
       }) 
       + '})'
   })
-  eval(m)
+  console.log('m', m.replace(/,}/g, '}'))
+  eval(m.replace(/,}/g, '}'))
 }
