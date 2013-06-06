@@ -54,6 +54,22 @@ function tell(s) {
     };
   });
 }
+function when() {
+  var cases = arguments;
+  return new Tmpl(function(c) {
+    var cs = [], n = cases.length;
+    for (var i = 0; i < n; i++)
+      cs.push(cases[i].run(c))
+    return function(r) {
+      for (var i = 0; i < n; i++) {
+        var result = cs[i](r);
+        if (result.value)
+          return result;
+      }
+      return { value: false, template: mnull() };
+    };
+  });
+}
 function ask(by) {
   return new Tmpl(function(c) {
     var f = function (r) { return r; };
@@ -124,13 +140,14 @@ function Tmpl(run){
       };
     }).appl(this);
   };
+  
   this.then = function(template, f) {
     var self = this;
-    if (f === null)
+    if (f == null)
       f = function(x) { return x; };
     return new Tmpl(function(c){
       var run = self.run(c);
-      var runT = interpolate(template).run(c);
+      var runT = template
       return function(x) {
         var res = run(x);
         return {
@@ -187,19 +204,19 @@ function Tmpl(run){
   this.compile = function(c) { return this.run(c); };
 }
 
-function templateDwim(arg) {
+function dwim(arg) {
   if (typeof arg === 'string')
     return interpolate(arg);
   else if (arg instanceof Function)
     return fromFunc(arg);
   else if (arg instanceof Tmpl)
-    return arg;
-  throw new Error('Unable to create template from argument.', arg);
+    return arg
+  return value(arg);
 }
 
 function repeat() {
   for (var i in arguments)
-    arguments[i] = templateDwim(arguments[i]);
+    arguments[i] = dwim(arguments[i]);
   return mconcatT(arguments).repeat();
 }
 
@@ -212,7 +229,7 @@ var makeTag = function(tagName) {
     return function() {
       var len = arguments.length;
       for (var i = 0; i < len; i++)
-        arguments[i] = templateDwim(arguments[i]);
+        arguments[i] = dwim(arguments[i]);
       var content = mconcatT(arguments);
 
       return new Tmpl(function(c) {
@@ -298,8 +315,35 @@ function interpolateGen(str, none, mappend, wrap) {
   });
 }
 
-window.div   = makeTag('div');
-window.span  = makeTag('span');
-window.table = makeTag('table');
-window.tr    = makeTag('tr');
-window.td    = makeTag('td');
+window.just = {}
+just.div   = makeTag('div');
+just.span  = makeTag('span');
+just.table = makeTag('table');
+just.tr    = makeTag('tr');
+just.td    = makeTag('td');
+just["switch"]  = function() { return when }
+just.repeat = function() { return repeat }
+just["case"] = function(obj) {
+  if (obj == null)
+    obj = dwim(true)
+  return function() {
+    var templates = arguments;
+    var n = templates.length;
+    return new Tmpl(function(c) {
+      var cond = dwim(obj.cond).run(c);
+      var tcs = [];
+      for (var i = 0; i < n; i++)
+        tcs.push(dwim(templates[i]).run(c));
+      return function(r) { 
+        if (cond(r).value) {
+          var trs = [];
+          for (var i = 0; i < n; i++)
+            trs.push(tcs[i](r).template);
+          return { value: true, template: mconcat(trs) };
+        }
+        return { value: false, template: mnull() };
+      }
+    });
+  }
+}
+just["else"] = just["default"] = just["case"]
