@@ -38,7 +38,5 @@ for (var i in scripts) {
     tstack.push(targs);
     return res + '('; 
   })
-  
-  console.log(m.replace(/,}/g, '}'))
   eval(m.replace(/,}/g, '}'))
 }

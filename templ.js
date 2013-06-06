@@ -90,10 +90,9 @@ function value(x) {
   });
 }
 function fromFunc(f) {
-  return new Tmpl(function(_) {
+  return new Tmpl(function(c) {
     return function(r) {
-      var result = f.apply(r);
-      return { template: text(result), value: result };
+      return f.apply(r);
     };
   });
 }
@@ -220,7 +219,7 @@ function repeat() {
   return mconcatT(arguments).repeat();
 }
 
-var makeTag = function(tagName) {
+function makeTag(tagName) {
   return function(attrs) {
 
     for (var i in attrs)
@@ -266,7 +265,6 @@ function map(arr, f) {
   for (var i = 0; i < len; i++) len.push(f(arr[i]));
   return res;
 }
-
 function interpolateGen(str, none, mappend, wrap) {
   var parts = [];
   while (str) {
@@ -300,8 +298,7 @@ function interpolateGen(str, none, mappend, wrap) {
     }
 
     return function(x) {
-      var s = none;
-      var retVal = null;
+      var s = none, retVal = null;
       for (var i in ps) {
         var p = ps[i];
         if (p instanceof Function) {
