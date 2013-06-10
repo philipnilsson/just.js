@@ -17,8 +17,8 @@ function raw(str) {
   var frag = document.createDocumentFragment();
   var div = document.createElement('div');
   div.innerHTML = str;
-  while (div.childNodes.length)
-    frag.appendChild(div.childNodes[0]);
+  while (div.firstChild)
+    frag.appendChild(div.firstChild);
   return tell(frag);
 }
 function text(str) {
@@ -59,7 +59,7 @@ function when() {
   return new Tmpl(function(c) {
     var cs = [], n = cases.length;
     for (var i = 0; i < n; i++)
-      cs.push(cases[i].run(c))
+      cs.push(cases[i].run(c));
     return function(r) {
       for (var i = 0; i < n; i++) {
         var result = cs[i](r);
@@ -73,7 +73,7 @@ function when() {
 function ask(by) {
   return new Tmpl(function(c) {
     var f = function (r) { return r; };
-    if (by !== null) {
+    if (by !== undefined) {
       var run = interpolate(by).run(c);
       f = function(r) { return run(r).value; };
     }
@@ -84,7 +84,7 @@ function ask(by) {
 }
 function value(x) {
   return new Tmpl(function(_) {
-    return function(x) {
+    return function(_) {
       return { value: x, template: mnull() };
     };
   });
@@ -107,12 +107,18 @@ function Tmpl(run){
       return function(r) {
         var f = run(r);
         var x = runT(r);
-        return { template: x.template, value: f.value(x) };
+        return { 
+          template: x.template, 
+          value: f.value(x) 
+        };
       };
     });
   };
   this.log = function() {
-    return this.map(function(x) { console.log(x); return x; });
+    return this.map(function(x) {
+      console.log(x);
+      return x;
+    });
   };
   this.repeat = function() {
     var self = this;
@@ -139,32 +145,15 @@ function Tmpl(run){
       };
     }).appl(this);
   };
-  
-  this.then = function(template, f) {
+  this.by = function(trans) {
     var self = this;
-    if (f == null)
-      f = function(x) { return x; };
-    return new Tmpl(function(c){
-      var run = self.run(c);
-      var runT = template
-      return function(x) {
-        var res = run(x);
-        return {
-          value: res.value,
-          template: append(res.template, f(res.value) ? runT(x).template :  mnull())
-        };
-      };
-    });
-  };
-  this.otherwise = function(template) {
-    return this.then(template, function(x) { return !x; });
-  };
-  this.mapEnv = function(trans) {
-    var self = this;
+    trans = dwim(trans);
     return new Tmpl(function (c) {
       var run = self.run(c);
+      var tr = trans.run(c)
       return function(x) {
-        return run(trans(x));
+        var e = tr(x).value;
+        return run(e);
       };
     });
   };
@@ -174,7 +163,10 @@ function Tmpl(run){
       var run = self.run(c);
       return function(r) {
         var res = run(r);
-        return { value: f(res.value), template: res.template };
+        return { 
+          value: f(res.value), 
+          template: res.template 
+        };
       };
     });
   };
@@ -186,7 +178,6 @@ function Tmpl(run){
       return function(r) {
         var resA = runA(r);
         var resB = runB(r);
-        var tmpA = document.createElement('divA');
         return {
           value: resB.value,
           template: append(resA.template, resB.template)
@@ -202,23 +193,20 @@ function Tmpl(run){
   };
   this.compile = function(c) { return this.run(c); };
 }
-
 function dwim(arg) {
   if (typeof arg === 'string')
     return interpolate(arg);
   else if (arg instanceof Function)
     return fromFunc(arg);
   else if (arg instanceof Tmpl)
-    return arg
+    return arg;
   return value(arg);
 }
-
 function repeat() {
   for (var i in arguments)
     arguments[i] = dwim(arguments[i]);
   return mconcatT(arguments).repeat();
 }
-
 function makeTag(tagName) {
   return function(attrs) {
 
@@ -251,18 +239,20 @@ function makeTag(tagName) {
       });
     };
   };
-};
+}
 
 function interpolate(str) {
   return interpolateGen(str, mnull(), append, text);
 }
 function interpolateStr(str) {
-  return interpolateGen(str, '', function(x,y) { return x + y; }, function(x){ return x; });
+  return interpolateGen(str, '', 
+    function(x,y) { return x + y; }, 
+    function(x){ return x; });
 }
 function map(arr, f) {
-  if (Array.prototype.map) { return arr.map(f); }
+  if (arr.map) { return arr.map(f); }
   var len = arr.length, res = [];
-  for (var i = 0; i < len; i++) len.push(f(arr[i]));
+  for (var i = 0; i < len; i++) res.push(f(arr[i]));
   return res;
 }
 function interpolateGen(str, none, mappend, wrap) {
@@ -311,36 +301,43 @@ function interpolateGen(str, none, mappend, wrap) {
     };
   });
 }
+function by(sel) {
+   sel = dwim(sel);
+   return function() {
+     return mconcatT(map(arguments, dwim)).by(sel);
+   };
+}
 
-window.just = {}
-just.div   = makeTag('div');
-just.span  = makeTag('span');
-just.table = makeTag('table');
-just.tr    = makeTag('tr');
-just.td    = makeTag('td');
-just["switch"]  = function() { return when }
-just.repeat = function() { return repeat }
-just["case"] = function(obj) {
-  if (obj == null)
-    obj = dwim(true)
+window.just = {};
+window.just.div   = makeTag('div');
+window.just.span  = makeTag('span');
+window.just.table = makeTag('table');
+window.just.tr    = makeTag('tr');
+window.just.td    = makeTag('td');
+window.just.by = function(obj) { return by(obj.value) }
+window.just["switch"]  = function() { return when; };
+window.just.repeat = function() { return repeat; };
+window.just["case"] = function(obj) {
+  if (obj.of === undefined) 
+    obj.of = true;
   return function() {
     var templates = arguments;
     var n = templates.length;
     return new Tmpl(function(c) {
-      var cond = dwim(obj.cond).run(c);
+      var cond = dwim(obj.of).run(c);
       var tcs = [];
       for (var i = 0; i < n; i++)
         tcs.push(dwim(templates[i]).run(c));
       return function(r) { 
         if (cond(r).value) {
           var trs = [];
-          for (var i = 0; i < n; i++)
+          for (var i = 0; i < n; i++) 
             trs.push(tcs[i](r).template);
           return { value: true, template: mconcat(trs) };
         }
         return { value: false, template: mnull() };
-      }
+      };
     });
-  }
-}
-just["else"] = just["default"] = just["case"]
+  };
+};
+window.just["else"] = window.just["default"] = window.just["case"];
