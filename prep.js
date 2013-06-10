@@ -1,8 +1,8 @@
 
 var scripts = document.getElementsByTagName('script')
 
-var tagRegex = /'(?:\\'|[^'])*'|"(?:\\"|[^"])*"|<\/>|<([a-zA-Z-]+)((?: *[a-zA-Z-]+ *= *"[^"\r\n]*")*) *>/g
-var attrRegex = /([a-zA-Z-]+) *= *("[^"\r\n]*")/g
+var tagRegex = /'(?:\\'|[^'])*'|"(?:\\"|[^"])*"|<\/>|<([a-zA-Z-]+)((?: *:?[a-zA-Z-]+ *= *"[^"\r\n]*")*) *>/g
+var attrRegex = /(:?[a-zA-Z-]+) *= *("[^"\r\n]*")/g
 
 for (var i in scripts) {
 
@@ -13,16 +13,30 @@ for (var i in scripts) {
   if (!string)
     continue;
   
+  var tstack = []
+
   var m = string.replace(tagRegex, function(str, tag, attrs) {
-    if (str == "</>")
-      return ")";
+    if (str == "</>") {
+      var res = '';
+      var args = tstack.pop() || []
+      for (var i in args) 
+        res += '["' + args[i].attr.slice(1) + '"](' + args[i].value + ')';
+      return ")" + res;
+    }
     if (str.charAt(0) === "'" || str.charAt(0) === '"')
         return str
-    return 'just.' + tag + '({'
+    var targs = []
+    var res = 'just.' + tag + '({'
       + attrs.replace(attrRegex, function(str, attr, value) {
+        if (attr.charAt(0) == ':') {
+          targs.push({attr:attr, value:value.slice(1,value.length-1)})
+          return ''
+        }
         return '"' + attr + '"' + ':' + value + ',';
       }) 
-      + '})('
+      + '})';
+    tstack.push(targs);
+    return res + '('; 
   })
   
   console.log(m.replace(/,}/g, '}'))
