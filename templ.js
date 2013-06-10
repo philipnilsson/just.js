@@ -273,7 +273,9 @@ function interpolateGen(str, none, mappend, wrap) {
       return function (cs) {
         return new Function(cs, 'return ' + body);
       };
-    })(str.slice(0,j)));
+    })(str.slice(0,j).replace(/@([a-zA-Z_]*)/, function(_, s) {
+      return s ? 'this.' + s : 'this';
+    })));
 
     str = str.slice(j + 2);
   }
