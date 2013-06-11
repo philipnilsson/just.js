@@ -124,19 +124,11 @@ function Tmpl(run){
       };
     });
   };
-  this.binding = function(field, selector) {
-    return dwim(selector).map(function(x) {
-      return function(y) {
-        return x.bindMe(field, y);
-      };
-    }).appl(this);
-  };
   this.by = function(trans) {
     var self = this;
-    trans = dwim(trans);
     return new Tmpl(function (c) {
       var run = self.run(c);
-      var tr = trans.run(c)
+      var tr = dwim(trans).run(c)
       return function(x) {
         return run(tr(x).value);
       };
@@ -163,12 +155,6 @@ function Tmpl(run){
       };
     }, this, other);
   };
-  this.withContext = function(name, value) {
-    var self = this;
-    return new Tmpl(function(c) {
-      return self.run(c.concat([{name: name, value: value}]));
-    });
-  };
   this.compile = function(c) { return this.run(c); };
 }
 function dwim(arg) {
@@ -187,7 +173,7 @@ function repeat() {
 function makeTag(tagName) {
   return function(attrs) {
 
-    attrs = mapObj(attrs, interpolateStr)
+    attrs = mapObj(attrs, dwim)
 
     return function() {
       var content = mconcatT(map(arguments, dwim));
@@ -199,7 +185,7 @@ function makeTag(tagName) {
         var runContent = content.run(c);
         return function(x) {
           var attributes = mapObj(as, function(a) { 
-              return a(x).template 
+              return a(x).value
           });
           var c = runContent(x);
           return {
@@ -210,14 +196,6 @@ function makeTag(tagName) {
       });
     };
   };
-}
-function interpolate(str) {
-  return interpolateGen(str, mnull(), append, text);
-}
-function interpolateStr(str) {
-  return interpolateGen(str, '', 
-    function(x,y) { return x + y; }, 
-    function(x){ return x; });
 }
 function map(arr, f) {
   if (arr.map) { return arr.map(f); }
@@ -230,48 +208,6 @@ function mapObj(obj, f) {
   for (var i in obj) 
     res[i] = f(obj[i]);
   return res;
-}
-function interpolateGen(str, none, mappend, wrap) {
-  var parts = [];
-  while (str) {
-    var i = str.indexOf('{{');
-    if (i < 0) {
-      parts.push(str);
-      break;
-    }
-    parts.push(str.slice(0, i));
-    str = str.slice(i + 2);
-    var j = str.indexOf('}}');
-    if (j < 0)
-      throw new Error('Parse error in template: Missing "}}"');
-
-    parts.push((function(body) {
-      return function (cs) {
-        return new Function(cs, 'return ' + body);
-      };
-    })(str.slice(0,j).replace(/@([a-zA-Z_]*)/, function(_, s) {
-      return s ? 'this.' + s : 'this';
-    })));
-
-    str = str.slice(j + 2);
-  }
-  return new Tmpl(function(c) {
-    var cs = map(c, function(x) { return x.name; });
-    var vs = map(c, function(x) { return x.value; });
-    var ps = map(parts, function(p) { 
-        return (p instanceof Function) ? p(cs) : p 
-    });
-    return function(x) {
-      var s = none, retVal = true;
-      for (var i in ps) {
-        var p = ps[i];
-        if (p instanceof Function) 
-          retVal = p = p.apply(x, vs);
-        s = mappend(s, wrap(p));
-      }
-      return { value: retVal, template: s };
-    };
-  });
 }
 
 window.just = {};
