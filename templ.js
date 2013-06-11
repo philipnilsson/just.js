@@ -54,12 +54,12 @@ function tell(s) {
     };
   });
 }
-function when() {
+function case_() {
   var cases = arguments;
   return new Tmpl(function(c) {
     var cs = [], n = cases.length;
     for (var i = 0; i < n; i++)
-      cs.push(cases[i].run(c));
+      cs.push(dwim(cases[i]).run(c));
     return function(r) {
       for (var i = 0; i < n; i++) {
         var result = cs[i](r);
@@ -86,6 +86,13 @@ function value(x) {
   return new Tmpl(function(_) {
     return function(_) {
       return { value: x, template: mnull() };
+    };
+  });
+}
+function id(x) {
+  return new Tmpl(function(_) {
+    return function(_) {
+      return { value: x, template: text(x) };
     };
   });
 }
@@ -157,6 +164,19 @@ function Tmpl(run){
       };
     });
   };
+  this.when = function(cond) {
+    var self = this;
+    cond = dwim(cond);
+    return new Tmpl(function(c) {
+        var runCond = cond.run(c)
+        var runSelf = self.run(c)
+        return function(r) {
+            if (runCond(r).value)
+                return runSelf(r);
+            return { template: mnull(), value: false };
+        };
+    });
+  }
   this.map = function(f) {
     var self = this;
     return new Tmpl(function(c) {
@@ -200,7 +220,7 @@ function dwim(arg) {
     return fromFunc(arg);
   else if (arg instanceof Tmpl)
     return arg;
-  return value(arg);
+  return id(arg);
 }
 function repeat() {
   for (var i in arguments)
@@ -290,7 +310,7 @@ function interpolateGen(str, none, mappend, wrap) {
     }
 
     return function(x) {
-      var s = none, retVal = null;
+      var s = none, retVal = true;
       for (var i in ps) {
         var p = ps[i];
         if (p instanceof Function) {
@@ -317,29 +337,10 @@ window.just.table = makeTag('table');
 window.just.tr    = makeTag('tr');
 window.just.td    = makeTag('td');
 window.just.by = function(obj) { return by(obj.value) }
-window.just["switch"]  = function() { return when; };
+window.just["case"]  = function() { return case_; };
 window.just.repeat = function() { return repeat; };
-window.just["case"] = function(obj) {
-  if (obj.of === undefined) 
-    obj.of = true;
-  return function() {
-    var templates = arguments;
-    var n = templates.length;
-    return new Tmpl(function(c) {
-      var cond = dwim(obj.of).run(c);
-      var tcs = [];
-      for (var i = 0; i < n; i++)
-        tcs.push(dwim(templates[i]).run(c));
-      return function(r) { 
-        if (cond(r).value) {
-          var trs = [];
-          for (var i = 0; i < n; i++) 
-            trs.push(tcs[i](r).template);
-          return { value: true, template: mconcat(trs) };
-        }
-        return { value: false, template: mnull() };
-      };
-    });
+window.just["else"] = function() {
+  return function(t) { 
+      return dwim(t).map(function(x) { return true; }); 
   };
-};
-window.just["else"] = window.just["default"] = window.just["case"];
+}
