@@ -142,9 +142,9 @@ function Tmpl(run){
     });
   };
   this.when = function(cond) {
-    return appl(function (x) { 
-        return x.value ? x : empty
-    }, this);
+    return appl(function (cond, x) { 
+        return cond.value ? x : empty
+    }, dwim(cond), this);
   }
   this.map = function(f) {
     return appl(function(f, t) { 
