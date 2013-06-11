@@ -31,8 +31,8 @@ function append(tmplA, tmplB) {
   if (tmplA === null)
     return tmplB;
   var frag = document.createDocumentFragment();
-  frag.appendChild(tmplA);
-  frag.appendChild(tmplB);
+  frag.appendChild(tmplA.cloneNode(true));
+  frag.appendChild(tmplB.cloneNode(true));
   return frag;
 }
 function mnull() {
@@ -87,20 +87,21 @@ function ask(by) {
     return { value: t, template: mnull() }
   }, by);
 }
-function value(x) {
+function unit(x, f) {
   return new Tmpl(_.always(_.always(
-    { value: x, template: mnull() }
-  )));
+    { value: x, template: f(x) })));
+}
+function value(x) {
+  return unit(x, _.always(mnull()))
 }
 var empty = value(null);
 function id(x) {
-  return new Tmpl(_.always(_.always(
-    { value: x, template: text(x) }
-  )));
+  return unit(x, text)
 }
 function fromFunc(f) {
   return new Tmpl(_.always(function(r) {
-    return f.apply(r);
+    var res = f.apply(r)
+    return { value: res, template: text(res) };
   }));
 }
 function concatT(templates) {
@@ -171,8 +172,9 @@ function Tmpl(run){
   this.compile = function(c) { return this.run(c); };
 }
 function dwim(arg) {
-  if (typeof arg === 'string')
-    return interpolate(arg);
+  if (typeof arg === 'string') {
+    return id(arg);
+  }
   else if (arg instanceof Function)
     return fromFunc(arg);
   else if (arg instanceof Tmpl)
@@ -180,30 +182,25 @@ function dwim(arg) {
   return id(arg);
 }
 function repeat() {
-  for (var i in arguments)
-    arguments[i] = dwim(arguments[i]);
-  return mconcatT(arguments).repeat();
+  return mconcatT(map(arguments, dwim)).repeat();
 }
 function makeTag(tagName) {
   return function(attrs) {
 
-    for (var i in attrs)
-      attrs[i] = interpolateStr(attrs[i]);
+    attrs = mapObj(attrs, interpolateStr)
 
     return function() {
       var content = mconcatT(map(arguments, dwim));
 
       return new Tmpl(function(c) {
-        var as = {};
-        for (var i in attrs) {
-          as[i] = attrs[i].run(c);
-        }
+        var as = mapObj(attrs, function(a) { 
+            return a.run(c) 
+        });
         var runContent = content.run(c);
         return function(x) {
-          var attributes = {};
-          for (var i in as) {
-            attributes[i] = as[i](x).template;
-          }
+          var attributes = mapObj(as, function(a) { 
+              return a(x).template 
+          });
           var c = runContent(x);
           return {
             value: c.value,
@@ -226,6 +223,12 @@ function map(arr, f) {
   if (arr.map) { return arr.map(f); }
   var len = arr.length, res = [];
   for (var i = 0; i < len; i++) res.push(f(arr[i]));
+  return res;
+}
+function mapObj(obj, f) {
+  var res = {};
+  for (var i in obj) 
+    res[i] = f(obj[i]);
   return res;
 }
 function interpolateGen(str, none, mappend, wrap) {

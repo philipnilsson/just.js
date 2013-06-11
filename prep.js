@@ -21,13 +21,13 @@ for (var i in scripts) {
     return str;
   });
   
-  var m = string.replace(tagRegex, function(str, tag, attrs) {
+  string = string.replace(tagRegex, function(str, tag, attrs) {
     if (str == "</>") {
       var res = '';
       var args = tstack.pop() || []
       for (var i in args) 
-        res += '["' + args[i].attr.slice(1) + '"]("{{ ' + 
-            args[i].value + ' }}")';
+        res += '["' + args[i].attr.slice(1) + '"](function() { return ' + 
+            args[i].value.replace('@', 'this.') + ' })';
       return ")" + res;
     }
     if (str.charAt(0) === "'" || str.charAt(0) === '"')
@@ -45,5 +45,14 @@ for (var i in scripts) {
     tstack.push(targs);
     return res + '('; 
   })
-  eval(m.replace(/,}/g, '}'))
+  
+  string = string.replace(/['](.*)[']/g, function(_, str) {
+    var res = str.replace(/{{([^}]*)}}/g, function(_, exp) {
+      return "', function(){ return " + exp.replace('@', 'this.') + "},'"
+    });
+    return "'" + res + "'"; 
+  });
+  
+  console.log(string)
+  eval(string)
 }
