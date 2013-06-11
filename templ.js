@@ -54,33 +54,43 @@ function tell(s) {
     };
   });
 }
-function case_() {
-  var cases = arguments;
+function appl() {
+  var fTmpl = arguments[0] instanceof Function 
+    ? value(arguments[0]) 
+    : arguments[0];
+  var fArgs = (arguments.length == 2 && arguments[1].length)
+    ? arguments[1]
+    : fArgs = [].slice.apply(arguments, [1])
   return new Tmpl(function(c) {
-    var cs = [], n = cases.length;
-    for (var i = 0; i < n; i++)
-      cs.push(dwim(cases[i]).run(c));
+    var fRun = fTmpl.run(c);
+    var tmplArgs = []
+    for (var i = 0; i < fArgs.length; i++)
+      tmplArgs.push(dwim(fArgs[i]).run(c))
     return function(r) {
-      for (var i = 0; i < n; i++) {
-        var result = cs[i](r);
-        if (result.value)
-          return result;
-      }
-      return { value: false, template: mnull() };
+      var f = fRun(r);
+      var args = []
+      var n = tmplArgs.length;
+      for (var i in tmplArgs)
+        args.push(tmplArgs[i](r))
+      return f.value.apply(r, args)
     };
   });
 }
-function ask(by) {
-  return new Tmpl(function(c) {
-    var f = function (r) { return r; };
-    if (by !== undefined) {
-      var run = interpolate(by).run(c);
-      f = function(r) { return run(r).value; };
+function case_() {
+  return appl(function(a, b) {
+    for (var i in arguments) {
+      if (arguments[i].value)
+        return arguments[i];
     }
-    return function(r) {
-      return { value: f(r), template: mnull() };
-    };
-  });
+    return empty;
+  }, arguments);
+}
+function ask(by) {
+  if (by !== undefined)
+    by = dwim(by !== undefined ? by : function() { return this });
+  return appl(function(t) {
+    return { value: t, template: mnull() }
+  }, by);
 }
 function value(x) {
   return new Tmpl(function(_) {
@@ -89,6 +99,7 @@ function value(x) {
     };
   });
 }
+var empty = value(null);
 function id(x) {
   return new Tmpl(function(_) {
     return function(_) {
@@ -106,21 +117,6 @@ function fromFunc(f) {
 function Tmpl(run){
   this.run = run;
   this.compile = run;
-  this.appl = function(template) {
-    var self = this;
-    return new Tmpl(function(c) {
-      var run = self.run(c);
-      var runT = template.run(c);
-      return function(r) {
-        var f = run(r);
-        var x = runT(r);
-        return { 
-          template: x.template, 
-          value: f.value(x) 
-        };
-      };
-    });
-  };
   this.log = function() {
     return this.map(function(x) {
       console.log(x);
@@ -165,45 +161,25 @@ function Tmpl(run){
     });
   };
   this.when = function(cond) {
-    var self = this;
-    cond = dwim(cond);
-    return new Tmpl(function(c) {
-        var runCond = cond.run(c)
-        var runSelf = self.run(c)
-        return function(r) {
-            if (runCond(r).value)
-                return runSelf(r);
-            return { template: mnull(), value: false };
-        };
-    });
+    return appl(function (x) { 
+        return x.value ? x : empty
+    }, this);
   }
   this.map = function(f) {
-    var self = this;
-    return new Tmpl(function(c) {
-      var run = self.run(c);
-      return function(r) {
-        var res = run(r);
-        return { 
-          value: f(res.value), 
-          template: res.template 
-        };
+    return appl(function(f, t) { 
+      return { 
+        value: f.value(t.value).value, 
+        template: t.template
       };
-    });
+    }, f, this);
   };
   this.and = function(other) {
-    var self = this;
-    return new Tmpl(function(c) {
-      var runA = self.run(c);
-      var runB = other.run(c);
-      return function(r) {
-        var resA = runA(r);
-        var resB = runB(r);
-        return {
-          value: resB.value,
-          template: append(resA.template, resB.template)
-        };
+    return appl(function(a,b) {
+      return { 
+        value: b.value, 
+        template: append(a.template, b.template) 
       };
-    });
+    }, this, other);
   };
   this.withContext = function(name, value) {
     var self = this;
@@ -260,7 +236,6 @@ function makeTag(tagName) {
     };
   };
 }
-
 function interpolate(str) {
   return interpolateGen(str, mnull(), append, text);
 }
@@ -323,12 +298,6 @@ function interpolateGen(str, none, mappend, wrap) {
     };
   });
 }
-function by(sel) {
-   sel = dwim(sel);
-   return function() {
-     return mconcatT(map(arguments, dwim)).by(sel);
-   };
-}
 
 window.just = {};
 window.just.div   = makeTag('div');
@@ -339,8 +308,3 @@ window.just.td    = makeTag('td');
 window.just.by = function(obj) { return by(obj.value) }
 window.just["case"]  = function() { return case_; };
 window.just.repeat = function() { return repeat; };
-window.just["else"] = function() {
-  return function(t) { 
-      return dwim(t).map(function(x) { return true; }); 
-  };
-}
