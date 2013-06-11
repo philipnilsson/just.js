@@ -15,13 +15,11 @@ for (var i in scripts) {
   
   var tstack = []
 
-  string = string.replace(/<\/>[ \r\n\t]*(...)/g, function(str, c){
-    if (c != '</>' && c.charAt(0) != ')' )
+  string = string.replace(/<\/>[ \r\n\t]*(..)/g, function(str, c){
+    if (c.charAt(0) == '<' && c.charAt(1) != '/' || c.charAt(0) == "'" )
         return '</>, ' + c;
     return str;
   });
-  
-  console.log(string)
   
   var m = string.replace(tagRegex, function(str, tag, attrs) {
     if (str == "</>") {
@@ -47,6 +45,5 @@ for (var i in scripts) {
     tstack.push(targs);
     return res + '('; 
   })
-  //console.log(m.replace(/,}/g, '}'))
   eval(m.replace(/,}/g, '}'))
 }
