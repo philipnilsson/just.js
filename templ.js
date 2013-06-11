@@ -6,6 +6,9 @@
 
 "use strict";
 
+window._ = {};
+_.always = function(x) { return function(){ return x } }
+
 function tag(tagName, attributes, content) {
   var el = document.createElement(tagName), i;
   for (i in attributes)
@@ -48,11 +51,9 @@ function mconcatT(tmpls) {
   return t;
 }
 function tell(s) {
-  return new Tmpl(function(_) {
-    return function(r) {
-      return { value: null, template: s.cloneNode(true) };
-    };
-  });
+  return new Tmpl(_.always(_.always(
+    { value: null, template: s.cloneNode(true) }
+  )));
 }
 function appl() {
   var fTmpl = arguments[0] instanceof Function 
@@ -63,16 +64,10 @@ function appl() {
     : fArgs = [].slice.apply(arguments, [1])
   return new Tmpl(function(c) {
     var fRun = fTmpl.run(c);
-    var tmplArgs = []
-    for (var i = 0; i < fArgs.length; i++)
-      tmplArgs.push(dwim(fArgs[i]).run(c))
+    var tmplArgs = map(fArgs, function(t) { return dwim(t).run(c) })
     return function(r) {
-      var f = fRun(r);
-      var args = []
-      var n = tmplArgs.length;
-      for (var i in tmplArgs)
-        args.push(tmplArgs[i](r))
-      return f.value.apply(r, args)
+      var args = map(tmplArgs, function(t) { return t(r) })
+      return fRun(r).value.apply(r, args)
     };
   });
 }
@@ -93,51 +88,38 @@ function ask(by) {
   }, by);
 }
 function value(x) {
-  return new Tmpl(function(_) {
-    return function(_) {
-      return { value: x, template: mnull() };
-    };
-  });
+  return new Tmpl(_.always(_.always(
+    { value: x, template: mnull() }
+  )));
 }
 var empty = value(null);
 function id(x) {
-  return new Tmpl(function(_) {
-    return function(_) {
-      return { value: x, template: text(x) };
-    };
-  });
+  return new Tmpl(_.always(_.always(
+    { value: x, template: text(x) }
+  )));
 }
 function fromFunc(f) {
-  return new Tmpl(function(c) {
-    return function(r) {
-      return f.apply(r);
-    };
-  });
+  return new Tmpl(_.always(function(r) {
+    return f.apply(r);
+  }));
+}
+function concatT(templates) {
+  var ts = [], vs = [];
+  for (var i in templates) {
+    ts.push(templates[i].template);
+    vs.push(templates[i].value);
+  }
+  return { value: vs, template: mconcat(ts) }
 }
 function Tmpl(run){
   this.run = run;
   this.compile = run;
-  this.log = function() {
-    return this.map(function(x) {
-      console.log(x);
-      return x;
-    });
-  };
   this.repeat = function() {
     var self = this;
     return new Tmpl(function(c){
       var run = self.run(c);
       return function(arr) {
-        var tmpl = [], vals = [];
-        for (var i in arr) {
-          var res = run(arr[i]);
-          vals.push(res.value);
-          tmpl.push(res.template);
-        }
-        return {
-          value: vals,
-          template: mconcat(tmpl)
-        };
+        return concatT(map(arr, run));
       };
     });
   };
@@ -155,8 +137,7 @@ function Tmpl(run){
       var run = self.run(c);
       var tr = trans.run(c)
       return function(x) {
-        var e = tr(x).value;
-        return run(e);
+        return run(tr(x).value);
       };
     });
   };
@@ -277,21 +258,15 @@ function interpolateGen(str, none, mappend, wrap) {
   return new Tmpl(function(c) {
     var cs = map(c, function(x) { return x.name; });
     var vs = map(c, function(x) { return x.value; });
-    var ps = [];
-    for (var i in parts) {
-      ps[i] = parts[i];
-      if (ps[i] instanceof Function)
-        ps[i] = (ps[i])(cs);
-    }
-
+    var ps = map(parts, function(p) { 
+        return (p instanceof Function) ? p(cs) : p 
+    });
     return function(x) {
       var s = none, retVal = true;
       for (var i in ps) {
         var p = ps[i];
-        if (p instanceof Function) {
-          p = p.apply(x, vs);
-          retVal = p;
-        }
+        if (p instanceof Function) 
+          retVal = p = p.apply(x, vs);
         s = mappend(s, wrap(p));
       }
       return { value: retVal, template: s };
