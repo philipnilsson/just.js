@@ -26,8 +26,8 @@ for (var i in scripts) {
       var res = '';
       var args = tstack.pop() || []
       for (var i in args) 
-        res += '["' + args[i].attr.slice(1) + '"]("{{' + 
-            args[i].value + '}}")';
+        res += '["' + args[i].attr.slice(1) + '"]("{{ ' + 
+            args[i].value + ' }}")';
       return ")" + res;
     }
     if (str.charAt(0) === "'" || str.charAt(0) === '"')
