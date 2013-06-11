@@ -124,7 +124,7 @@ function Tmpl(run){
     });
   };
   this.binding = function(field, selector) {
-    return interpolate(selector).map(function(x) {
+    return dwim(selector).map(function(x) {
       return function(y) {
         return x.bindMe(field, y);
       };
@@ -191,10 +191,7 @@ function makeTag(tagName) {
       attrs[i] = interpolateStr(attrs[i]);
 
     return function() {
-      var len = arguments.length;
-      for (var i = 0; i < len; i++)
-        arguments[i] = dwim(arguments[i]);
-      var content = mconcatT(arguments);
+      var content = mconcatT(map(arguments, dwim));
 
       return new Tmpl(function(c) {
         var as = {};
