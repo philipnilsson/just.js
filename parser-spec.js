@@ -137,12 +137,69 @@ describe('Just.js Parser', function() {
               '// testing\n',
               'var y = ',
               { tag : { tag : 'foo', attrs : [  ], content : [ 'bar', { splice: 'cux'} ] } },
-              '\n',
               '"<foo></foo>"',
               '\nif (x ',
               '<',
               ' 3 && x > 10) console.log(',
               '"hello"',
               ')' ]);
+    });
+
+    it('should print a simple tag correctly', function() {
+        var x = tag('<div></>').value;
+        expect(ly.printTag(x)).toBe('just.div({})()');
+    });
+
+    it('should print a tag with attributes correctly', function() {
+        var x = tag('<div class="test"></>').value;
+        expect(ly.printTag(x)).toBe('just.div({"class":"test"})()');
+    });
+
+    it('should print a tag with content correctly', function() {
+        var x = tag('<div class="test"> Foo Bar </>').value;
+        expect(ly.printTag(x)).toBe('just.div({"class":"test"})("Foo Bar ")');
+    });
+
+    it('should correctly print a splice in an attribute', function() {
+        var x = tag('<div class="${foo}"></>').value;
+        expect(ly.printTag(x)).toBe('just.div({"class":foo})()');
+    });
+
+    it('should correctly print multiple attributes', function() {
+        var x = tag('<div class="${foo}" id="bar"></>').value;
+        expect(ly.printTag(x)).toBe('just.div({"class":foo,"id":"bar"})()');
+    });
+
+    it('should correctly print content with newlines in it', function() {
+        var x = tag('<span> Foo \n Bar \r\n Cux </span>').value;
+        expect(ly.printTag(x)).toBe('just.span({})("Foo \\n Bar \\n Cux ")')
+    });
+
+    it('should collapse newlines when printing', function() {
+        var x = tag('<span> Foo \r\r\n\n\n Bar </span>').value;
+        expect(ly.printTag(x)).toBe('just.span({})("Foo \\n Bar ")')
+    });
+
+    it('should print nested tags', function() {
+        var x = tag('<div> Foo <span> Bar </> </>').value;
+        expect(ly.printTag(x)).toBe(
+            'just.div({})("Foo ",just.span({})("Bar "))');
+    });
+    
+    it('should replace tags correctly in javascript', function() {
+        var x = 'var x = <span> Foo \r\r\n\n\n Bar </span>';
+        expect(ly.expandStr(x)).toBe('var x = just.span({})("Foo \\n Bar ")');
+    });
+    
+    it('should be able to parse js-like expressions', function() {
+        
+        expect(ly.jsExpr.parse('foo.bar').value).toBe('foo.bar');
+        expect(ly.jsExpr.parse('foo[bar].cux().fizz  bar').value).toBe('foo[bar].cux().fizz');
+        
+        expect(ly.jsExpr.parse('foo[bar]. cux().fizz  bar').value).toBe('foo[bar]');
+    });
+
+    it('shoudl map to match correctly', function() {
+        expect(ly.jsString.mapToMatch().parse('"foo"').value).toBe('"foo"');
     });
 });

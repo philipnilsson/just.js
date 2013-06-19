@@ -1,3 +1,4 @@
+var util = require('util')
 
 var Parser = function Parser(f) {
     this.parse = function(st) {
@@ -106,7 +107,7 @@ Parser.prototype.log = function(message) {
         var msg = st;
         if (st !== FAIL) 
             msg = st.str.substr(0, st.i) + '^' + st.str.substr(st.i);
-        console.log(message || 'log', st.value || st, '\nmsg: ', msg);
+        console.error(message || 'log', util.inspect(st.value, { depth: null}) || st, '\nmsg: ', msg);
         return st;
     });
 }
@@ -222,11 +223,11 @@ var jsStringTick =
 var jsStringQuote =
     chr('"').then(noneOf('\\"').or(string('\\"').map('"').or(chr('\\'))).manyStr().before(chr('"')));
 
-var jsExpr = function() { return jsExpr; }
-jsExpr = 
+var sliceContent = function() { return sliceContent; }
+sliceContent = 
     jsChar.someStr()
-    .or(chr('{').andStr(lazy(jsExpr)).andStr(chr('}')))
-    .or(jsStringTick)
+    .or(chr('{').andStr(lazy(sliceContent)).andStr(chr('}')))
+    .or(jsStringTick.mapToMatch())
     .manyStr();
 
 var jsString = _.jsString = 
@@ -235,21 +236,43 @@ var jsString = _.jsString =
 var jsComment = _.jsComment = string('//').then(noneOf('\r\n').manyStr()).before(oneOf('\r\n').some())
     .or(fromRegex(new RegExp("^/\\*(([^*]|\\*[^/])*)\\*/")));
 
+var jsIdent = jsIdentChar.someStr();
+
+var jsExpr  = function() { return _.jsExpr; }
+var jsExpr2 = function() { return jsExpr2; }
+var jsExpr3 = jsIdent.or(jsString.mapToMatch());
+
+jsExpr = _.jsExpr = 
+    lazy(jsExpr2).andStr(chr('.')).andStr(lazy(jsExpr)).or(
+    token('(').andStr(lazy(jsExpr).token()).andStr(chr(')'))).or(
+    lazy(jsExpr2));
+
+jsExpr2 =
+    jsIdent.andStr(
+        token('[').andStr(jsExpr.token().andStr(chr(']'))).or(
+        token('(').andStr(jsExpr.token().sepBy(token(','))).andStr(chr(')')))).or(
+    jsExpr3)
+    
+var expr = 
+    chr('@').then(jsExpr).map(function(x) { return { expr: 'this.' + x }; }).or(
+    chr('@').map({ expr: 'this' }))
+
 var splice = string("${")
-    .then(jsExpr)
+    .then(sliceContent)
     .before(string("}"))
+    .or(chr("$").then(jsIdent))
     .map(makeObject('splice'));
 
 var justStringLit = 
     chr('"').then(splice
-                .or(noneOf('\\"$').or(string('\\"').map('"')).or(chr('\\')).someStr())
+                .or(expr)
+                .or(noneOf('@\\"$').or(string('\\"').map('"')).or(chr('\\')).someStr())
                 .or(chr('$'))
                 .many())
             .before(chr('"'))
             .token();
 
 var htmlIdent = tagChar.someStr().token();
-var jsIdent = jsIdentChar.someStr().token();
 
 var attribute = apply(
     function(x, y) { return { attr: x, value: y } },
@@ -264,7 +287,7 @@ var tag = _.tag = chr('<')
         attribute.many().before(token('>')),
         lazy(content)))
     .flatMap(function(tag) {
-        return string("</>").or(string("</" + tag.tag + ">")).map(tag);
+        return string("</>").or(string("</" + tag.tag + ">")).token().map(tag);
     });
 
 var just = _.just = 
@@ -278,8 +301,64 @@ var just = _.just =
 content = noneOf('$\\@<>').someStr()
     .or(string('\\@').map('@'))
     .or(string('\\$').map('$'))
-    .or(chr('@').andStr(jsIdent).map(makeObject('splice')))
-    .or(chr('@').map(makeObject('splice')))
+    .or(expr)
     .or(splice)
     .or(tag)
     .many();
+
+var printTag = _.printTag = function(tag) {
+    
+    var attrs = '', content = '';
+    for (var i in tag.attrs) {
+        attrs += '"' + tag.attrs[i].attr + '":[' 
+        var attr = tag.attrs[i];
+        for (var j in attr.value) {
+            var value = attr.value[j];
+            if (value.splice !== undefined) 
+                attrs += value.splice.trim()
+            else if (value.expr !== undefined)
+                attrs += 'function(){return ' + value.expr.trim() + '}'
+            else
+                attrs += '"' + value + '"';
+            if (j != attr.value.length - 1)
+                attrs += ',';
+        }
+        attrs += ']';
+        if (i != tag.attrs.length - 1)
+            attrs += ',';
+    }
+    for (var i in tag.content) {
+        if (tag.content[i].tag !== undefined) 
+            content += printTag(tag.content[i]);
+        else if (tag.content[i].splice !== undefined) 
+            content += tag.content[i].splice.trim()
+        else if (tag.content[i].expr !== undefined) 
+            content += 'function(){return ' + tag.content[i].expr.trim() + '}'
+        else
+            content += '"' + tag.content[i].replace(/(\r|\n)+/g, '\\n') + '"';
+        if (i != tag.content.length - 1)
+            content += ','
+    }
+    
+    return 'just.' + tag.tag + '({' + attrs + '})(' + content + ')';
+}
+
+_.expandStr = function(str) {
+    
+    var result = '';
+    var ast = just.log().parse(str).value;
+    for (var i in ast) {
+        if (ast[i].tag !== undefined)
+            result += printTag(ast[i].tag);
+        else
+            result += ast[i];
+    }
+    return result;
+}
+
+var fs = require('fs');
+
+_.expandFile  = function(fileName) {
+    var data = fs.readFileSync(fileName, "utf8");
+    return _.expandStr(data);
+}

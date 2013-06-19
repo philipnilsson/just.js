@@ -158,9 +158,8 @@ function Tmpl(run){
   this.compile = function(c) { return this.run(c); };
 }
 function dwim(arg) {
-  if (typeof arg === 'string') {
+  if (typeof arg === 'string') 
     return id(arg);
-  }
   else if (arg instanceof Function)
     return fromFunc(arg);
   else if (arg instanceof Tmpl)
@@ -173,7 +172,11 @@ function repeat() {
 function makeTag(tagName) {
   return function(attrs) {
 
-    attrs = mapObj(attrs, dwim)
+    attrs = mapObj(attrs, function(tmpls) {
+        return appl(function() { 
+            return { value: map(arguments, function(x) { return x.value}).join("") };
+        }, map(tmpls, dwim));
+    });
 
     return function() {
       var content = mconcatT(map(arguments, dwim));
