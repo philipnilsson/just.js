@@ -273,7 +273,7 @@ var justStringLit =
             .before(chr('"'))
             .token();
 
-var htmlIdent = tagChar.someStr().token();
+var htmlIdent = tagChar.andStr(tagChar.or(num).manyStr()).token();
 
 var attribute = apply(
     function(x, y) { return { attr: x, value: y } },

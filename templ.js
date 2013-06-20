@@ -40,15 +40,21 @@ function mnull() {
 }
 function mconcat(tmpls) {
   var frag = document.createDocumentFragment();
-  for (var i in tmpls)
+  var n = tmpls.length;
+  for (var i = 0; i < n; i++) 
     frag.appendChild(tmpls[i]);
   return frag;
 }
 function mconcatT(tmpls) {
-  var t = value(null);
-  for (var i in tmpls)
-    t = t.and(tmpls[i]);
-  return t;
+  var n = tmpls.length;
+  if (n <= 1)
+    return n == 0 ? value(null) : tmpls[0];
+  return new Tmpl(function(r){ 
+    var ts = []
+    for (var i = 0; i < n; i++) 
+      ts.push(tmpls[i].run(r).template);
+    return { value: null, template: mconcat(ts) };
+  });
 }
 function tell(s) {
   return new Tmpl(_.always(
@@ -70,7 +76,8 @@ function appl() {
 }
 function case_() {
   return appl(function(a, b) {
-    for (var i in arguments) {
+    var n = arguments.length;
+    for (var i = 0; i < n; i++) {
       if (arguments[i].value)
         return arguments[i];
     }
@@ -102,8 +109,8 @@ function fromFunc(f) {
   });
 }
 function concatT(templates) {
-  var ts = [], vs = [];
-  for (var i in templates) {
+  var ts = [], vs = [], n = templates.length;
+  for (var i = 0; i < n; i++) {
     ts.push(templates[i].template);
     vs.push(templates[i].value);
   }
@@ -122,8 +129,9 @@ function Tmpl(run){
   };
   this.by = function(trans) {
     var self = this;
+    trans = dwim(trans);
     return new Tmpl(function(r) {
-      return self.run(dwim(trans).run(r).value);
+      return self.run(trans.run(r).value);
     });
   };
   this.when = function(cond) {
@@ -140,12 +148,12 @@ function Tmpl(run){
     }, f, this);
   };
   this.and = function(other) {
-    return appl(function(a,b) {
-      return { 
-        value: b.value, 
-        template: append(a.template, b.template) 
-      };
-    }, this, other);
+    var self = this;
+    return new Tmpl(function(r) {
+        var a = self.run(r)
+        var b = other.run(r)
+        return { value: b.value, template: append(a.template, b.template) }
+    });
   };
 }
 function dwim(arg) {
@@ -163,19 +171,20 @@ function repeat() {
 function makeTag(tagName) {
   return function(attrs) {
 
-    attrs = mapObj(attrs, function(tmpls) {
-        return appl(function() { 
+    for (var i in attrs) {
+        attrs[i] = appl(function() { 
             return { value: map(arguments, function(x) { return x.value}).join("") };
-        }, map(tmpls, dwim));
-    });
+        }, map(attrs[i], dwim));
+    }
 
     return function() {
       var content = mconcatT(map(arguments, dwim));
 
       return new Tmpl(function(r) {
-        var attributes = mapObj(attrs, function(a) { 
-            return a.run(r).value
-        });
+        
+        var attributes = {}
+        for (var i in attrs)
+            attributes[i] = attrs[i].run(r).value;
         var c = content.run(r);
         return {
           value: c.value,
@@ -185,18 +194,15 @@ function makeTag(tagName) {
     };
   };
 }
+
 function map(arr, f) {
-  if (arr.map) { return arr.map(f); }
-  var len = arr.length, res = [];
-  for (var i = 0; i < len; i++) res.push(f(arr[i]));
+  var n = arr.length || 0, i = -1;
+  var res = Array(n);
+  while (++i < n)
+      res[i] = f(arr[i])
   return res;
 }
-function mapObj(obj, f) {
-  var res = {};
-  for (var i in obj) 
-    res[i] = f(obj[i]);
-  return res;
-}
+
 
 window.just = {};
 window.just.div   = makeTag('div');
@@ -204,6 +210,17 @@ window.just.span  = makeTag('span');
 window.just.table = makeTag('table');
 window.just.tr    = makeTag('tr');
 window.just.td    = makeTag('td');
+
+window.just.ul    = makeTag('ul');
+window.just.li    = makeTag('li');
+
+window.just.h1    = makeTag('h1');
+window.just.h2    = makeTag('h2');
+window.just.h3    = makeTag('h3');
+window.just.h4    = makeTag('h4');
+window.just.h5    = makeTag('h5');
+window.just.h6    = makeTag('h6');
+
 window.just.by = function(obj) { return by(obj.value) }
 window.just["case"]  = function() { return case_; };
 window.just.repeat = function() { return repeat; };
