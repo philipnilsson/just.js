@@ -24,7 +24,7 @@ _.ensureParser = function ensureParser(x) {
 _.ensureFunction = function ensureFunction(x) {
     return x instanceof Function ? x : _.always(x);
 }
-_.makeObject = makeObject = function() {
+var makeObject = _.makeObject = function() {
     var names = arguments
     return function() {
         var res = {}
@@ -34,6 +34,7 @@ _.makeObject = makeObject = function() {
         return res;
     }
 }
+
 // Base Parsers
 
 var FAIL = _.FAIL = '<<failed parse>>';
@@ -279,12 +280,17 @@ var attribute = apply(
     htmlIdent.before(token('=')),
     justStringLit);
 
+var specialAttribute = apply(
+    function(x, y) { return { specialAttr: x, value: y } },
+    chr(':').then(htmlIdent).before(token('=')),
+    justStringLit);
+
 var content = function() { return content; }
 
 var tag = _.tag = chr('<')
     .then(apply(makeObject('tag', 'attrs', 'content'),
         htmlIdent,
-        attribute.many().before(token('>')),
+        attribute.or(specialAttribute).many().before(token('>')),
         lazy(content)))
     .flatMap(function(tag) {
         return string("</>").or(string("</" + tag.tag + ">")).token().map(tag);
@@ -306,59 +312,59 @@ content = noneOf('$\\@<>').someStr()
     .or(tag)
     .many();
 
+var printValue = function(value) {
+    if (value.splice !== undefined) 
+        return value.splice.trim()
+    else if (value.expr !== undefined)
+        return 'function(){return ' + value.expr.trim() + '}'
+    else
+        return '"' + value + '"';
+}
+
+var printAttr = function(attr) {
+    return '"' + attr.attr + '":' 
+        + '[' + attr.value.map(printValue).join(',') + ']';
+}
+
+var printSpecial = function(special) {
+    return '.' + special.specialAttr + '(' 
+        + special.value.map(printValue).join(',') + ')';
+}
+
+var printContent = function(c) {
+    if (c.tag !== undefined) 
+        return printTag(c);
+    if (c.splice !== undefined) 
+        return c.splice.trim()
+    if (c.expr !== undefined) 
+        return 'function(){return ' + c.expr.trim() + '}'
+    return '"' + c.replace(/(\r|\n)+/g, '\\n') + '"';
+}
+
 var printTag = _.printTag = function(tag) {
     
-    var attrs = '', content = '';
-    for (var i in tag.attrs) {
-        attrs += '"' + tag.attrs[i].attr + '":[' 
-        var attr = tag.attrs[i];
-        for (var j in attr.value) {
-            var value = attr.value[j];
-            if (value.splice !== undefined) 
-                attrs += value.splice.trim()
-            else if (value.expr !== undefined)
-                attrs += 'function(){return ' + value.expr.trim() + '}'
-            else
-                attrs += '"' + value + '"';
-            if (j != attr.value.length - 1)
-                attrs += ',';
-        }
-        attrs += ']';
-        if (i != tag.attrs.length - 1)
-            attrs += ',';
-    }
-    for (var i in tag.content) {
-        if (tag.content[i].tag !== undefined) 
-            content += printTag(tag.content[i]);
-        else if (tag.content[i].splice !== undefined) 
-            content += tag.content[i].splice.trim()
-        else if (tag.content[i].expr !== undefined) 
-            content += 'function(){return ' + tag.content[i].expr.trim() + '}'
-        else
-            content += '"' + tag.content[i].replace(/(\r|\n)+/g, '\\n') + '"';
-        if (i != tag.content.length - 1)
-            content += ','
-    }
+    var attrs = tag.attrs
+        .filter(function(x) { return x.attr !== undefined})
+        .map(printAttr)
+        .join(',');
     
-    return 'just.' + tag.tag + '({' + attrs + '})(' + content + ')';
+    var specials = tag.attrs
+        .filter(function(x) { return x.specialAttr !== undefined})
+        .map(printSpecial)
+        .join(',');
+    
+    var content = tag.content
+        .map(printContent)
+        .join(',');
+    
+    return 'just.' + tag.tag + '({' + attrs + '})(' + content + ')' + specials;
 }
 
 _.expandStr = function(str) {
-    
-    var result = '';
-    var ast = just.log().parse(str).value;
-    for (var i in ast) {
-        if (ast[i].tag !== undefined)
-            result += printTag(ast[i].tag);
-        else
-            result += ast[i];
-    }
-    return result;
-}
-
-var fs = require('fs');
-
-_.expandFile  = function(fileName) {
-    var data = fs.readFileSync(fileName, "utf8");
-    return _.expandStr(data);
+    return just
+        .parse(str).value
+        .map(function(node) {
+            return node.tag !== undefined ? printTag(node.tag) : node;
+        })
+        .join('');
 }
