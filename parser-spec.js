@@ -211,14 +211,14 @@ describe('Just.js Parser', function() {
   it('should parse :calls() with one parameter', function() {
     expect(ly.specialAttribute.parse(':charge(foo)').value).to.eql({
       specialAttr: 'charge',
-      value: [ 'foo' ]
+      value: [ { expr: 'foo' } ]
     });
   });
 
   it('should parse :calls() with muliple parameters', function() {
     expect(ly.specialAttribute.parse(':charge(foo, bar)').value).to.eql({
       specialAttr: 'charge',
-      value: [ 'foo', 'bar' ]
+      value: [ { expr: 'foo' }, { expr: 'bar' } ]
     });
   });
   
@@ -229,7 +229,7 @@ describe('Just.js Parser', function() {
     });
   });
 
-  it.only('should print :calls() correctly', function() {
+  it('should print :calls() correctly', function() {
     var x = tag('<div :call(foo)></>').value;
     expect(ly.printTag(x)).to.be('just.div({})().call(function(){return foo})');
   });
