@@ -279,7 +279,7 @@ var attribute = apply(
 var specialAttribute = apply(
     function(x, y) { return { specialAttr: x, value: y } },
     chr(':').then(htmlIdent),
-    token('(').then(jsExpr.token().sepBy(token(',')).before(token(')'))));
+    token('(').then(jsExpr.token().map(makeObject('expr')).sepBy(token(',')).before(token(')'))));
 
 var content = function() { return content; }
 

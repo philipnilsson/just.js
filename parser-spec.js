@@ -229,9 +229,9 @@ describe('Just.js Parser', function() {
     });
   });
 
-  it('should print :calls() correctly', function() {
+  it.only('should print :calls() correctly', function() {
     var x = tag('<div :call(foo)></>').value;
-    expect(ly.printTag(x)).to.be('just.div({})().call(foo)');
+    expect(ly.printTag(x)).to.be('just.div({})().call(function(){return foo})');
   });
 
 });
