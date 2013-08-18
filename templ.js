@@ -31,8 +31,8 @@ function append(tmplA, tmplB) {
   if (tmplA === null)
     return tmplB;
   var frag = document.createDocumentFragment();
-  frag.appendChild(tmplA.cloneNode(true));
-  frag.appendChild(tmplB.cloneNode(true));
+  frag.appendChild(tmplA);
+  frag.appendChild(tmplB);
   return frag;
 }
 function mnull() {

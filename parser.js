@@ -224,13 +224,6 @@ var jsStringTick =
 var jsStringQuote =
     chr('"').then(noneOf('\\"').or(string('\\"').map('"').or(chr('\\'))).manyStr().before(chr('"')));
 
-var sliceContent = function() { return sliceContent; }
-sliceContent = 
-    jsChar.someStr()
-    .or(chr('{').andStr(lazy(sliceContent)).andStr(chr('}')))
-    .or(jsStringTick.mapToMatch())
-    .manyStr();
-
 var jsString = _.jsString = 
     jsStringQuote.or(jsStringTick);
 
@@ -246,7 +239,8 @@ var jsExpr3 = jsIdent.or(jsString.mapToMatch());
 jsExpr = _.jsExpr = 
     lazy(jsExpr2).andStr(chr('.')).andStr(lazy(jsExpr)).or(
     token('(').andStr(lazy(jsExpr).token()).andStr(chr(')'))).or(
-    lazy(jsExpr2));
+    lazy(jsExpr2))
+  .mapToMatch();
 
 jsExpr2 =
     jsIdent.andStr(
@@ -258,10 +252,10 @@ var expr =
     chr('@').then(jsExpr).map(function(x) { return { expr: 'this.' + x }; }).or(
     chr('@').map({ expr: 'this' }))
 
-var splice = string("${")
-    .then(sliceContent)
+var splice = string("${").token()
+    .then(jsExpr.token())
     .before(string("}"))
-    .or(chr("$").then(jsIdent))
+    .or(chr("$").then(jsExpr))
     .map(makeObject('splice'));
 
 var justStringLit = 
@@ -280,10 +274,12 @@ var attribute = apply(
     htmlIdent.before(token('=')),
     justStringLit);
 
+
+
 var specialAttribute = apply(
     function(x, y) { return { specialAttr: x, value: y } },
-    chr(':').then(htmlIdent).before(token('=')),
-    justStringLit);
+    chr(':').then(htmlIdent),
+    token('(').then(jsExpr.token().sepBy(token(',')).before(token(')'))));
 
 var content = function() { return content; }
 
@@ -351,7 +347,7 @@ var printTag = _.printTag = function(tag) {
     var specials = tag.attrs
         .filter(function(x) { return x.specialAttr !== undefined})
         .map(printSpecial)
-        .join(',');
+        .join('');
     
     var content = tag.content
         .map(printContent)
@@ -359,6 +355,8 @@ var printTag = _.printTag = function(tag) {
     
     return 'just.' + tag.tag + '({' + attrs + '})(' + content + ')' + specials;
 }
+
+_.specialAttribute = specialAttribute
 
 _.expandStr = function(str) {
     return just
